@@ -1,5 +1,5 @@
 require "github_export/version"
 
 module GithubExport
-  # Your code goes here...
+  autoload :Command, 'github_export/command'
 end

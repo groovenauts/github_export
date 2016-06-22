@@ -1,3 +1,4 @@
 #!/usr/bin/env ruby
 
 require "github_export"
+GithubExport::Command.start(ARGV)
