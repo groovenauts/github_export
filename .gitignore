@@ -8,3 +8,5 @@
 /spec/reports/
 /tmp/
 /*.json
+/assets
+/assets.txt
