@@ -1,8 +1,10 @@
-# GithubExport
+# github_export
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/github_export`. To experiment with that code, run `bin/console` for an interactive prompt.
+`github_export` command exports your issues, pull requests, comments, labels, milestones and events to `.json` file.
+And it downloads your files which was uploaded to the issues or the comments.
 
-TODO: Delete this and the text above, and describe your gem
+You can use the exported `.json` files and downloaded files for backup or migration to the other.
+
 
 ## Installation
 
@@ -22,13 +24,42 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+```bash
+$ github_export all <org_or_user>/<repo> -d path/to/export
+```
 
-## Development
+Or you can specify access token with `--access-token` options if you know the access token.
 
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
+```bash
+$ github_export all <org_or_user>/<repo> -d path/to/export -t <access token>
+```
 
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and tags, and push the `.gem` file to [rubygems.org](https://rubygems.org).
+See help for more detail
+
+```bash
+$ github_export
+Commands:
+  github_export all REPO           # Export all of the repository
+  github_export assets             # Download assets of the repository
+  github_export assets_check       # Check downloaded assets exist with assets.txt
+  github_export assets_download    # Download assets with assets.txt
+  github_export assets_list FILES  # Scan asset urls to assets.txt
+  github_export comments REPO      # Export comments of the repository
+  github_export events REPO        # Export events of the repository
+  github_export help [COMMAND]     # Describe available commands or one specific command
+  github_export issue_events REPO  # Export issue events of the repository
+  github_export issues REPO        # Export issues of the repository
+  github_export labels REPO        # Export labels of the repository
+  github_export milestones REPO    # Export milestones of the repository
+  github_export releases REPO      # Export releases of the repository
+  github_export repository REPO    # Export repository itself
+
+Options:
+  -t, [--access-token=ACCESS_TOKEN]  # Personal Access Token
+  -d, [--output-dir=OUTPUT_DIR]      # Output directory path
+                                     # Default: /Users/akima/groovenauts/github_export
+  -V, [--verbose], [--no-verbose]    # Show more details
+```
 
 ## Contributing
 
