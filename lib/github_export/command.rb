@@ -7,11 +7,13 @@ require 'octokit'
 
 require 'uri'
 require 'fileutils'
+require 'io/console'
 
 module GithubExport
   class Command < Thor
     class_option :access_token, aliases: '-t', type: :string, desc: 'Personal Access Token'
     class_option :output_dir  , aliases: '-d', type: :string, desc: 'Output directory path', default: Dir.pwd
+    class_option :verbose     , aliases: '-V', type: :boolean, desc: "Show more details"
 
     desc 'all REPO', "Export all of the repository"
     def all(repo)
@@ -94,7 +96,6 @@ module GithubExport
     desc 'assets_download', "Download assets with #{ASSETS_LIST_FILENAME}"
     option :client_num, aliases: '-n', type: :numeric, default: 3, desc: "Number of clients to download"
     option :force     , aliases: '-f', type: :boolean            , desc: "Overwrite if the file exists"
-    option :verbose   , aliases: '-V', type: :boolean            , desc: "Show more details"
     def assets_download
       num = [options[:client_num].to_i, 1].max
       lines = read_from_output_file(ASSETS_LIST_FILENAME).lines.map(&:strip)
@@ -105,11 +106,11 @@ module GithubExport
             uri = URI.parse(url)
             dest = File.join(options[:output_dir], uri.path)
             if options[:force] || !File.exist?(dest)
-              puts "\e[34mDL #{url}\e[0m" if options[:verbose]
+              verbose "DL #{url}"
               FileUtils.mkdir_p(File.dirname(dest))
               File.binwrite(dest, client.get(url))
             else
-              puts "\e[33mSKIP #{url}\e[0m" if options[:verbose]
+              verbose "SKIP #{url}"
             end
           end
         end
@@ -140,16 +141,41 @@ module GithubExport
         @client
       end
 
+      ACCESS_TOKEN_NAME = 'Github Export'.freeze
+
       def generate_access_token
-        $stderr.print 'login: '   ; login = $stdin.gets
-        $stderr.print 'password: '; pw = $stdin.gets
-        $stderr.print 'two factor token(Optional): '; two_fa_token = $stdin.gets
+        $stderr.print 'login: '   ; login = $stdin.gets.strip
+        $stderr.print 'password: '; pw = $stdin.noecho(&:gets).strip
+        $stdout.print "\n" # For noecho
         client = Octokit::Client.new login: login, password: pw
-        opts = {:scopes => ["repo", "user"], :note => "Github Export"}
-        unless two_fa_token.strip.empty?
-          opts[:headers] = { "X-GitHub-OTP" => two_fa_token }
+        verbose(client.inspect)
+
+        opts = {:scopes => ["repo", "user"], :note => ACCESS_TOKEN_NAME}
+        $stderr.print 'two-factor authentication OTP code(Optional): '; two_fa_code = $stdin.gets.strip
+        unless two_fa_code.empty?
+          opts[:headers] = { "X-GitHub-OTP" => two_fa_code }
         end
-        return client.create_authorization(opts)
+        verbose("client.create_authorization(#{opts.inspect})")
+        begin
+          puts "=" * 100
+          res = client.create_authorization(opts)
+          puts "-" * 100
+          verbose("token: #{res.inspect}")
+          return res[:token]
+        rescue Octokit::Unauthorized => e
+          puts_error "Authentication failed. Your login name or password is wrong."
+          exit(1)
+        rescue Octokit::OneTimePasswordRequired => e
+          puts_error "You must specify two-factor authentication OTP code."
+          exit(1)
+        rescue Octokit::UnprocessableEntity => e
+          if e.errors.any?{|err| err[:code] == 'already_exists' && err[:resource] == 'OauthAccess'}
+            puts_error "Access Token named \"#{ACCESS_TOKEN_NAME}\" is already created." \
+                       "\nPlease remove the personal access token named \"#{ACCESS_TOKEN_NAME}\" at https://github.com/settings/tokens ." \
+                       "\nOr you can regenerate token on Edit view of the personal access token and add --access-token option to github_export command."
+          end
+          exit(1)
+        end
       end
 
       def call_repo_method(repo, name, filename, api_opts = {})
@@ -158,13 +184,27 @@ module GithubExport
       end
 
       def output_to_file(filename, content)
-        open(File.join(options[:output_dir], filename), 'w') do |f|
+        path = File.join(options[:output_dir], filename)
+        FileUtils.mkdir_p(File.dirname(path))
+        open(path, 'w') do |f|
           f.puts(content)
         end
       end
 
       def read_from_output_file(filename)
         File.read(File.join(options[:output_dir], filename))
+      end
+
+      def puts_error(msg)
+        $stderr.puts "\e[31m#{msg}\e[0m"
+      end
+
+      def puts_info(msg)
+        $stderr.puts "\e[0m#{msg}\e[0m"
+      end
+
+      def verbose(msg)
+        $stderr.puts "\e[34m#{msg}\e[0m" if options[:verbose]
       end
 
     end
