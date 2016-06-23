@@ -77,25 +77,25 @@ module GithubExport
     desc 'assets', "Download assets of the repository"
     def assets
       files = Dir.glob(File.join(options[:output_dir], '**/*.json'))
-      list_assets(*files)
-      download_assets
-      check_assets
+      assets_list(*files)
+      assets_download
+      assets_check
     end
 
     ASSET_PATTERN = /\!\[[^\[\]]+\]\(([^\(\)]+)\)/.freeze
-    desc 'list_assets FILES', "Scan asset urls to #{ASSETS_LIST_FILENAME}"
-    def list_assets(*files)
+    desc 'assets_list FILES', "Scan asset urls to #{ASSETS_LIST_FILENAME}"
+    def assets_list(*files)
       urls = files.map{|file|
         File.read(file).lines.map{|line| line.scan(ASSET_PATTERN)}.delete_if(&:empty?).flatten.uniq
       }.flatten.sort.uniq
       output_to_file(ASSETS_LIST_FILENAME, urls.join("\n"))
     end
 
-    desc 'download_assets', "Download assets with #{ASSETS_LIST_FILENAME}"
+    desc 'assets_download', "Download assets with #{ASSETS_LIST_FILENAME}"
     option :client_num, aliases: '-n', type: :numeric, default: 3, desc: "Number of clients to download"
     option :force     , aliases: '-f', type: :boolean            , desc: "Overwrite if the file exists"
     option :verbose   , aliases: '-V', type: :boolean            , desc: "Show more details"
-    def download_assets
+    def assets_download
       num = [options[:client_num].to_i, 1].max
       lines = read_from_output_file(ASSETS_LIST_FILENAME).lines.map(&:strip)
       tasks = lines.group_by.with_index{|_, i| i % num}
@@ -120,8 +120,8 @@ module GithubExport
     CHECK_MSG_OK = "\e[32mOK %s\e[0m".freeze
     CHECK_MSG_NG = "\e[31mNG %s\e[0m".freeze
 
-    desc 'check_assets', "Check downloaded assets exist with #{ASSETS_LIST_FILENAME}"
-    def check_assets
+    desc 'assets_check', "Check downloaded assets exist with #{ASSETS_LIST_FILENAME}"
+    def assets_check
       read_from_output_file(ASSETS_LIST_FILENAME).lines.map(&:strip).each do |line|
         path = File.join(options[:output_dir], URI.parse(line).path)
         fmt = File.exist?(path) ? CHECK_MSG_OK : CHECK_MSG_NG
