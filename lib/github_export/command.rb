@@ -5,6 +5,9 @@ require 'thor'
 # https://github.com/octokit/octokit.rb
 require 'octokit'
 
+require 'uri'
+require 'fileutils'
+
 module GithubExport
   class Command < Thor
     class_option :access_token, aliases: '-t', type: :string, desc: 'Personal Access Token'
@@ -20,14 +23,13 @@ module GithubExport
       comments(repo)
       events(repo)
       issue_events(repo)
+      assets
     end
 
     desc 'repository REPO', "Export repository itself"
     def repository(repo)
       result = client.repository(repo)
-      open(File.join(options[:output_dir], 'repository.json'), 'w') do |f|
-        f.puts(JSON.pretty_generate(result.to_attrs))
-      end
+      output_to_file('repository.json', JSON.pretty_generate(result.to_attrs))
     end
 
     desc 'milestones REPO', "Export milestones of the repository"
@@ -70,6 +72,63 @@ module GithubExport
       call_repo_method(repo, :repository_issue_events, 'issue_events.json', sort: 'created', direction: 'asc')
     end
 
+    ASSETS_LIST_FILENAME = 'assets.txt'.freeze
+
+    desc 'assets', "Download assets of the repository"
+    def assets
+      files = Dir.glob(File.join(options[:output_dir], '**/*.json'))
+      list_assets(*files)
+      download_assets
+      check_assets
+    end
+
+    ASSET_PATTERN = /\!\[[^\[\]]+\]\(([^\(\)]+)\)/.freeze
+    desc 'list_assets FILES', "Scan asset urls to #{ASSETS_LIST_FILENAME}"
+    def list_assets(*files)
+      urls = files.map{|file|
+        File.read(file).lines.map{|line| line.scan(ASSET_PATTERN)}.delete_if(&:empty?).flatten.uniq
+      }.flatten.sort.uniq
+      output_to_file(ASSETS_LIST_FILENAME, urls.join("\n"))
+    end
+
+    desc 'download_assets', "Download assets with #{ASSETS_LIST_FILENAME}"
+    option :client_num, aliases: '-n', type: :numeric, default: 3, desc: "Number of clients to download"
+    option :force     , aliases: '-f', type: :boolean            , desc: "Overwrite if the file exists"
+    option :verbose   , aliases: '-V', type: :boolean            , desc: "Show more details"
+    def download_assets
+      num = [options[:client_num].to_i, 1].max
+      lines = read_from_output_file(ASSETS_LIST_FILENAME).lines.map(&:strip)
+      tasks = lines.group_by.with_index{|_, i| i % num}
+      tasks.each do |idx, task_lines|
+        fork do
+          task_lines.each do |url|
+            uri = URI.parse(url)
+            dest = File.join(options[:output_dir], uri.path)
+            if options[:force] || !File.exist?(dest)
+              puts "\e[34mDL #{url}\e[0m" if options[:verbose]
+              FileUtils.mkdir_p(File.dirname(dest))
+              File.binwrite(dest, client.get(url))
+            else
+              puts "\e[33mSKIP #{url}\e[0m" if options[:verbose]
+            end
+          end
+        end
+        Process.waitall
+      end
+    end
+
+    CHECK_MSG_OK = "\e[32mOK %s\e[0m".freeze
+    CHECK_MSG_NG = "\e[31mNG %s\e[0m".freeze
+
+    desc 'check_assets', "Check downloaded assets exist with #{ASSETS_LIST_FILENAME}"
+    def check_assets
+      read_from_output_file(ASSETS_LIST_FILENAME).lines.map(&:strip).each do |line|
+        path = File.join(options[:output_dir], URI.parse(line).path)
+        fmt = File.exist?(path) ? CHECK_MSG_OK : CHECK_MSG_NG
+        puts fmt % path
+      end
+    end
+
     no_commands do
       def client
         unless @client
@@ -95,9 +154,17 @@ module GithubExport
 
       def call_repo_method(repo, name, filename, api_opts = {})
         results = client.send(name, repo, api_opts)
+        output_to_file(filename, JSON.pretty_generate(results.map(&:to_attrs)))
+      end
+
+      def output_to_file(filename, content)
         open(File.join(options[:output_dir], filename), 'w') do |f|
-          f.puts(JSON.pretty_generate(results.map(&:to_attrs)))
+          f.puts(content)
         end
+      end
+
+      def read_from_output_file(filename)
+        File.read(File.join(options[:output_dir], filename))
       end
 
     end
