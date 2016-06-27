@@ -157,9 +157,7 @@ module GithubExport
         end
         verbose("client.create_authorization(#{opts.inspect})")
         begin
-          puts "=" * 100
           res = client.create_authorization(opts)
-          puts "-" * 100
           verbose("token: #{res.inspect}")
           return res[:token]
         rescue Octokit::Unauthorized => e
