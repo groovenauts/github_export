@@ -144,22 +144,20 @@ module GithubExport
       ACCESS_TOKEN_NAME = 'Github Export'.freeze
 
       def generate_access_token
-        $stderr.print 'login: '   ; login = $stdin.gets.strip
-        $stderr.print 'password: '; pw = $stdin.noecho(&:gets).strip
+        login = ask 'login: '
+        pw = ask 'password: ', echo: false
         $stdout.print "\n" # For noecho
         client = Octokit::Client.new login: login, password: pw
         verbose(client.inspect)
 
         opts = {:scopes => ["repo", "user"], :note => ACCESS_TOKEN_NAME}
-        $stderr.print 'two-factor authentication OTP code(Optional): '; two_fa_code = $stdin.gets.strip
+        two_fa_code = ask 'two-factor authentication OTP code(Optional): '
         unless two_fa_code.empty?
           opts[:headers] = { "X-GitHub-OTP" => two_fa_code }
         end
         verbose("client.create_authorization(#{opts.inspect})")
         begin
-          puts "=" * 100
           res = client.create_authorization(opts)
-          puts "-" * 100
           verbose("token: #{res.inspect}")
           return res[:token]
         rescue Octokit::Unauthorized => e
