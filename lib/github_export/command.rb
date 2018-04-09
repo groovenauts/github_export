@@ -108,7 +108,12 @@ module GithubExport
             if options[:force] || !File.exist?(dest)
               verbose "DL #{url}"
               FileUtils.mkdir_p(File.dirname(dest))
-              File.binwrite(dest, client.get(url))
+              # Assets might be downloaded from S3 so we use curl (or httpclient?) without auth info instead of `client` object
+              # File.binwrite(dest, client.get(url))
+              cmd = "curl -o #{dest} #{url}"
+              unless system(cmd)
+                puts "Download Error #{cmd}"
+              end
             else
               verbose "SKIP #{url}"
             end
