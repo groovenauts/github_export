@@ -110,7 +110,7 @@ module GithubExport
               FileUtils.mkdir_p(File.dirname(dest))
               # Assets might be downloaded from S3 so we use curl (or httpclient?) without auth info instead of `client` object
               # File.binwrite(dest, client.get(url))
-              cmd = "curl -o #{dest} #{url}"
+              cmd = "curl -f -o #{dest} #{url}"
               unless system(cmd)
                 puts "Download Error #{cmd}"
               end
